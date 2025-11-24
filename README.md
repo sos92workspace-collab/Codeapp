@@ -33,3 +33,5 @@ Pour un fonctionnement complet, créez les tables :
 - `redevances(id bigint primary key generated always as identity, actor_id uuid, actor_name text, actor_role text, period text, amount numeric, status text)`
 
 Activez la politique RLS adaptée (par exemple : les administrateurs peuvent tout voir ; les autres uniquement leurs lignes via `actor_id`).
+
+Vous pouvez exécuter directement le script `supabase_schema.sql` dans l'éditeur SQL Supabase : il crée les tables, ajoute des politiques RLS de base et charge quelques données d'exemple pour tester l'interface.
