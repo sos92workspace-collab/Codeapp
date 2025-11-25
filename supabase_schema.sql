@@ -28,27 +28,32 @@ create index if not exists redevances_actor_period_idx on public.redevances (act
 alter table public.profiles enable row level security;
 alter table public.redevances enable row level security;
 
--- Politique : un administrateur voit tout
-create policy if not exists "Admins can manage all profiles" on public.profiles
+drop policy if exists "Admins can manage all profiles" on public.profiles;
+create policy "Admins can manage all profiles" on public.profiles
     for all using (auth.jwt() ->> 'role' = 'admin');
 
-create policy if not exists "Admins can manage all redevances" on public.redevances
+drop policy if exists "Admins can manage all redevances" on public.redevances;
+create policy "Admins can manage all redevances" on public.redevances
     for all using (auth.jwt() ->> 'role' = 'admin');
 
 -- Politique : les utilisateurs peuvent voir/mettre à jour leur propre profil
-create policy if not exists "Users can manage their profile" on public.profiles
+drop policy if exists "Users can manage their profile" on public.profiles;
+create policy "Users can manage their profile" on public.profiles
     for select using (auth.uid() = id)
     with check (auth.uid() = id);
 
 -- Politique : les utilisateurs peuvent voir leurs lignes et en ajouter
-create policy if not exists "Users see their redevances" on public.redevances
+drop policy if exists "Users see their redevances" on public.redevances;
+create policy "Users see their redevances" on public.redevances
     for select using (auth.uid() = actor_id);
 
-create policy if not exists "Users insert their redevances" on public.redevances
+drop policy if exists "Users insert their redevances" on public.redevances;
+create policy "Users insert their redevances" on public.redevances
     for insert with check (auth.uid() = actor_id);
 
 -- Politique : les utilisateurs peuvent mettre à jour leurs lignes
-create policy if not exists "Users update their redevances" on public.redevances
+drop policy if exists "Users update their redevances" on public.redevances;
+create policy "Users update their redevances" on public.redevances
     for update using (auth.uid() = actor_id)
     with check (auth.uid() = actor_id);
 
