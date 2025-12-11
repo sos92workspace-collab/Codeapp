@@ -1,37 +1,28 @@
-# SCM – Gestion des redevances (Supabase)
+# SCM – Gestion des redevances (mode local)
 
-Cette page web statique fournit une interface de connexion (médecin, remplaçant, administrateur) et des tableaux de bord liés à Supabase pour suivre les redevances sur 4 ans.
+Cette version est une page HTML autonome qui stocke toutes les données de redevances directement dans le navigateur (localStorage). Aucun service externe n'est requis : il suffit d'ouvrir `index.html`.
 
-## Lancer l'interface en local
+## Lancer l'interface
 
-Aucune dépendance n'est nécessaire :
+- Double-cliquez sur `index.html` ou servez le répertoire via un petit serveur local :
 
 ```bash
 python -m http.server 8000
 # puis ouvrir http://localhost:8000
 ```
 
-## Fonctionnalités principales
+## Fonctionnement
 
-- Authentification Supabase (email/mot de passe) avec récupération du profil (table `profiles`).
-- Tableaux dédiés selon le rôle :
-  - **Administrateur** : import CSV/Excel, saisie manuelle, synthèse annuelle (appelé/payé/en attente).
-  - **Médecins / Remplaçants** : vue personnelle filtrable (12/24/48 mois).
-- Gestion des statuts "Appelée", "Payée" et "En attente" et historique sur 4 ans.
-- Mode dégradé : en cas d'indisponibilité Supabase, des données d'exemple sont injectées pour garder une vue exploitable.
+- **Persistance locale** : chaque saisie ou import CSV est enregistré automatiquement dans `localStorage`.
+- **Import CSV** : colonnes attendues `identite`, `profil`, `periode`, `montant`, `statut` (les variantes `nom`, `role`, `period`, `amount`, `status` sont aussi reconnues).
+- **Formulaire manuel** : ajoutez une redevance (identité, rôle, période, montant, statut) ; les valeurs sont ajoutées en tête d'historique.
+- **Filtrage** : la synthèse peut être limitée aux 12, 24 ou 48 derniers mois ou afficher tout l'historique.
+- **Réinitialisation** : le bouton « Réinitialiser » vide les données locales.
 
-## Configuration Supabase
+## Structure
 
-Le client est pré-configuré avec l'URL et la clé publique fournies :
+- `index.html` : page unique et interface utilisateur.
+- `styles.css` : thème sombre et composants.
+- `app.js` : logique front-end (lecture/écriture `localStorage`, import CSV, affichage des totaux).
 
-- URL : `https://ixwzkhitzykokvzggmix.supabase.co`
-- API Key : `sb_publishable_apJygRnFeCm6G6MW7IWfGw_LeOr31BK`
-
-Pour un fonctionnement complet, créez les tables :
-
-- `profiles(id uuid primary key references auth.users, full_name text, role text)`
-- `redevances(id bigint primary key generated always as identity, actor_id uuid, actor_name text, actor_role text, period text, amount numeric, status text)`
-
-Activez la politique RLS adaptée (par exemple : les administrateurs peuvent tout voir ; les autres uniquement leurs lignes via `actor_id`).
-
-Vous pouvez exécuter directement le script `supabase_schema.sql` dans l'éditeur SQL Supabase : il crée les tables, ajoute des politiques RLS de base et charge quelques données d'exemple pour tester l'interface.
+_Old Supabase assets (ex. `supabase_schema.sql`) restent pour référence mais ne sont plus nécessaires._

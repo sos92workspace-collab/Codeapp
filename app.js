@@ -1,339 +1,208 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const SUPABASE_URL = 'https://ixwzkhitzykokvzggmix.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_apJygRnFeCm6G6MW7IWfGw_LeOr31BK';
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-const authPanel = document.getElementById('auth-panel');
-const dashboard = document.getElementById('dashboard');
-const authForm = document.getElementById('auth-form');
-const authMessage = document.getElementById('auth-message');
-const logoutBtn = document.getElementById('logout-btn');
-const roleLabel = document.getElementById('role-label');
-const welcomeMessage = document.getElementById('welcome-message');
-const periodLabel = document.getElementById('period-label');
-const adminTools = document.getElementById('admin-tools');
-const overview = document.getElementById('overview');
-const personal = document.getElementById('personal');
-const periodFilter = document.getElementById('period-filter');
-const personalPeriod = document.getElementById('personal-period');
-const calledTotal = document.getElementById('called-total');
-const paidTotal = document.getElementById('paid-total');
-const pendingTotal = document.getElementById('pending-total');
-const annualRows = document.getElementById('annual-rows');
-const personalRows = document.getElementById('personal-rows');
-const parseBtn = document.getElementById('parse-btn');
-const feeFile = document.getElementById('fee-file');
-const manualForm = document.getElementById('manual-form');
-const manualFeedback = document.getElementById('manual-feedback');
-const statusPill = document.getElementById('status-pill');
-
-const state = {
-  user: null,
-  role: null,
-  profile: null,
-  fees: [],
-};
-
+const STORAGE_KEY = 'scm-redevances-local';
 const statusLabels = {
   appelee: 'Appelée',
   payee: 'Payée',
   en_attente: 'En attente',
 };
 
+const entryForm = document.getElementById('entry-form');
+const formFeedback = document.getElementById('form-feedback');
+const importBtn = document.getElementById('import-btn');
+const importFeedback = document.getElementById('import-feedback');
+const fileInput = document.getElementById('file-input');
+const resetBtn = document.getElementById('reset-data');
+const rangeFilter = document.getElementById('range-filter');
+const calledTotal = document.getElementById('called-total');
+const paidTotal = document.getElementById('paid-total');
+const pendingTotal = document.getElementById('pending-total');
+const entriesBody = document.getElementById('entries-body');
+const entryCount = document.getElementById('entry-count');
+
+const state = {
+  entries: [],
+};
+
 function formatCurrency(value) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(value);
 }
 
-function showAuthMessage(message) {
-  authMessage.textContent = message;
-  authMessage.hidden = !message;
-}
-
-async function fetchProfile(user) {
-  const { data, error } = await supabase.from('profiles').select('full_name, role').eq('id', user.id).single();
-  if (error) {
-    console.warn('Profil introuvable, utilisation du rôle sélectionné.', error.message);
-    return null;
-  }
-  return data;
-}
-
-async function fetchFees(userId, role) {
-  const fourYearsAgo = new Date();
-  fourYearsAgo.setFullYear(fourYearsAgo.getFullYear() - 4);
-  const cutoff = `${fourYearsAgo.getFullYear()}-${String(fourYearsAgo.getMonth() + 1).padStart(2, '0')}`;
-
-  const query = supabase
-    .from('redevances')
-    .select('id, actor_name, actor_role, period, amount, status')
-    .gte('period', cutoff)
-    .order('period', { ascending: false });
-
-  if (role !== 'administrateur') {
-    query.eq('actor_id', userId);
+function loadEntries() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      state.entries = JSON.parse(stored);
+      return;
+    } catch (error) {
+      console.warn('Impossible de lire les données locales, réinitialisation.', error);
+    }
   }
 
-  const { data, error } = await query;
-
-  if (error) {
-    console.warn('Utilisation de données locales (Supabase indisponible):', error.message);
-    state.fees = sampleFees();
-    return;
-  }
-
-  state.fees = data || [];
-}
-
-function sampleFees() {
   const now = new Date();
-  const items = [];
-  for (let i = 0; i < 24; i += 1) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+  const sample = Array.from({ length: 12 }).map((_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
     const period = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    const amount = Math.round(200 + Math.random() * 400);
-    const statusKeys = ['appelee', 'payee', 'en_attente'];
-    const status = statusKeys[i % statusKeys.length];
-    items.push({
-      id: `mock-${i}`,
-      actor_name: i % 2 === 0 ? 'Dr. Dupont' : 'Remplaçant Martin',
-      actor_role: i % 2 === 0 ? 'medecin' : 'remplacant',
-      actor_id: state.user?.id || 'demo',
+    return {
+      id: crypto.randomUUID(),
+      identity: index % 2 === 0 ? 'Dr. Martin' : 'Remplaçant Durand',
+      role: index % 2 === 0 ? 'medecin' : 'remplacant',
       period,
-      amount,
-      status,
-    });
-  }
-  return items;
+      amount: Math.round(200 + Math.random() * 400),
+      status: index % 3 === 0 ? 'payee' : index % 3 === 1 ? 'appelee' : 'en_attente',
+    };
+  });
+
+  state.entries = sample;
+  saveEntries();
 }
 
-function summarizeFees(fees) {
-  const totals = { appelee: 0, payee: 0, en_attente: 0 };
-  fees.forEach((fee) => {
-    if (totals[fee.status] !== undefined) {
-      totals[fee.status] += fee.amount;
+function saveEntries() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
+}
+
+function showMessage(element, message) {
+  element.textContent = message;
+  element.hidden = false;
+  setTimeout(() => { element.hidden = true; }, 2000);
+}
+
+function upsertEntries(newEntries) {
+  const existingIds = new Set(state.entries.map((entry) => entry.id));
+  newEntries.forEach((entry) => {
+    if (!entry.id || existingIds.has(entry.id)) {
+      entry.id = crypto.randomUUID();
     }
   });
-  return totals;
+
+  state.entries = [...newEntries, ...state.entries];
+  saveEntries();
+  render();
 }
 
-function groupByYear(fees) {
-  const byYear = new Map();
-  fees.forEach((fee) => {
-    const [year] = fee.period.split('-');
-    if (!byYear.has(year)) {
-      byYear.set(year, { appelee: 0, payee: 0, en_attente: 0 });
-    }
-    const group = byYear.get(year);
-    group[fee.status] += fee.amount;
+function parseCsv(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+
+  return lines.slice(1).map((line) => {
+    const values = line.split(',').map((v) => v.trim());
+    const record = Object.fromEntries(headers.map((h, index) => [h, values[index] ?? '']));
+    return {
+      id: crypto.randomUUID(),
+      identity: record.identite || record.identité || record.nom || 'N/A',
+      role: record.profil || record.role || 'medecin',
+      period: record.periode || record.period || '2024-01',
+      amount: Number(record.montant || record.amount || 0),
+      status: (record.statut || record.status || 'appelee').toLowerCase(),
+    };
   });
-  return Array.from(byYear.entries())
-    .sort((a, b) => Number(b[0]) - Number(a[0]))
-    .map(([year, totals]) => ({ year, ...totals }));
 }
 
-function renderOverview(fees) {
-  const summary = summarizeFees(fees);
-  calledTotal.textContent = formatCurrency(summary.appelee);
-  paidTotal.textContent = formatCurrency(summary.payee);
-  pendingTotal.textContent = formatCurrency(summary.en_attente);
-
-  const rows = groupByYear(fees)
-    .map((row) => `
-      <tr>
-        <td>${row.year}</td>
-        <td>${formatCurrency(row.appelee)}</td>
-        <td>${formatCurrency(row.payee)}</td>
-        <td>${formatCurrency(row.en_attente)}</td>
-      </tr>
-    `)
-    .join('');
-  annualRows.innerHTML = rows || '<tr><td colspan="4">Aucune donnée</td></tr>';
+function summarize(entries) {
+  return entries.reduce((acc, entry) => {
+    acc[entry.status] = (acc[entry.status] || 0) + entry.amount;
+    return acc;
+  }, { appelee: 0, payee: 0, en_attente: 0 });
 }
 
-function renderPersonal(fees) {
-  const rows = fees
-    .sort((a, b) => b.period.localeCompare(a.period))
-    .map((fee) => `
-      <tr>
-        <td>${fee.period}</td>
-        <td>${formatCurrency(fee.amount)}</td>
-        <td><span class="pill">${statusLabels[fee.status] || fee.status}</span></td>
-      </tr>
-    `)
-    .join('');
-  personalRows.innerHTML = rows || '<tr><td colspan="3">Aucune redevance trouvée</td></tr>';
-}
-
-function filterByPeriod(fees, months) {
+function filterByRange(entries, months) {
+  if (months === 'all') return entries;
   const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - months);
-  return fees.filter((fee) => {
-    const [year, month] = fee.period.split('-').map(Number);
+  cutoff.setMonth(cutoff.getMonth() - Number(months));
+
+  return entries.filter((entry) => {
+    const [year, month] = entry.period.split('-').map(Number);
     const date = new Date(year, month - 1, 1);
     return date >= cutoff;
   });
 }
 
-function applyAdminFilters() {
-  const filter = periodFilter.value;
-  const now = new Date();
-  let filtered = [...state.fees];
-
-  if (filter === 'current-year') {
-    filtered = filtered.filter((fee) => fee.period.startsWith(String(now.getFullYear())));
-    periodLabel.textContent = `Année ${now.getFullYear()}`;
-  } else if (filter === 'last-year') {
-    const last = now.getFullYear() - 1;
-    filtered = filtered.filter((fee) => fee.period.startsWith(String(last)));
-    periodLabel.textContent = `Année ${last}`;
-  } else {
-    periodLabel.textContent = '4 dernières années';
-  }
-
-  renderOverview(filtered);
+function renderSummary() {
+  const filtered = filterByRange(state.entries, rangeFilter.value);
+  const totals = summarize(filtered);
+  calledTotal.textContent = formatCurrency(totals.appelee);
+  paidTotal.textContent = formatCurrency(totals.payee);
+  pendingTotal.textContent = formatCurrency(totals.en_attente);
 }
 
-function applyPersonalFilters() {
-  const months = Number(personalPeriod.value);
-  renderPersonal(filterByPeriod(state.fees, months));
-}
-
-async function handleAuth(event) {
-  event.preventDefault();
-  const formData = new FormData(authForm);
-  const email = formData.get('email');
-  const password = formData.get('password');
-  const selectedRole = formData.get('role');
-
-  showAuthMessage('Connexion en cours...');
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-  if (error || !data?.user) {
-    showAuthMessage('Connexion impossible. Vérifiez vos identifiants.');
+function renderTable() {
+  if (!state.entries.length) {
+    entriesBody.innerHTML = '<tr><td colspan="5">Aucune donnée</td></tr>';
+    entryCount.textContent = '0 enregistrement';
     return;
   }
 
-  state.user = data.user;
-  state.profile = await fetchProfile(data.user);
-  state.role = state.profile?.role || selectedRole || 'medecin';
+  const rows = [...state.entries]
+    .sort((a, b) => b.period.localeCompare(a.period))
+    .map((entry) => `
+      <tr>
+        <td>${entry.period}</td>
+        <td>${entry.identity}</td>
+        <td>${entry.role === 'medecin' ? 'Médecin' : 'Remplaçant'}</td>
+        <td>${formatCurrency(entry.amount)}</td>
+        <td><span class="pill">${statusLabels[entry.status] || entry.status}</span></td>
+      </tr>
+    `)
+    .join('');
 
-  showAuthMessage('');
-  statusPill.textContent = 'Connecté';
-  statusPill.classList.remove('pill--warning');
-
-  welcomeMessage.textContent = state.profile?.full_name || data.user.email;
-  roleLabel.textContent = `Profil : ${state.role}`;
-
-  authPanel.hidden = true;
-  dashboard.hidden = false;
-  logoutBtn.hidden = false;
-
-  adminTools.hidden = state.role !== 'administrateur';
-  overview.hidden = state.role !== 'administrateur';
-  personal.hidden = state.role === 'administrateur';
-
-  await fetchFees(data.user.id, state.role);
-  if (state.role === 'administrateur') {
-    applyAdminFilters();
-  } else {
-    applyPersonalFilters();
-  }
+  entriesBody.innerHTML = rows;
+  entryCount.textContent = `${state.entries.length} enregistrement${state.entries.length > 1 ? 's' : ''}`;
 }
 
-async function handleLogout() {
-  await supabase.auth.signOut();
-  state.user = null;
-  state.fees = [];
-  authPanel.hidden = false;
-  dashboard.hidden = true;
-  logoutBtn.hidden = true;
-  showAuthMessage('Vous avez été déconnecté.');
+function render() {
+  renderTable();
+  renderSummary();
 }
 
-function parseCsv(text) {
-  const [headerLine, ...lines] = text.trim().split(/\r?\n/);
-  const headers = headerLine.split(',').map((h) => h.trim().toLowerCase());
-  return lines.map((line) => {
-    const values = line.split(',').map((v) => v.trim());
-    const record = Object.fromEntries(headers.map((h, index) => [h, values[index]]));
-    return {
-      actor_name: record.identite || record.nom || 'N/A',
-      actor_role: record.profil || record.role || 'medecin',
-      period: record.periode || record.period || '2024-01',
-      amount: Number(record.montant || record.amount || 0),
-      status: (record.statut || 'appelee').toLowerCase(),
-    };
-  });
-}
-
-async function importFees(records) {
-  const payload = records.map((row) => ({
-    actor_name: row.actor_name,
-    actor_role: row.actor_role,
-    actor_id: state.user?.id,
-    period: row.period,
-    amount: row.amount,
-    status: row.status,
-  }));
-
-  const { error } = await supabase.from('redevances').insert(payload);
-  if (error) {
-    console.warn('Enregistrement local (Supabase indisponible)', error.message);
-    state.fees.unshift(...payload);
-  } else {
-    await fetchFees(state.user.id, state.role);
-  }
-
-  applyAdminFilters();
-}
-
-function handleFileImport() {
-  const file = feeFile.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async () => {
-    const records = parseCsv(String(reader.result));
-    await importFees(records);
-  };
-  reader.readAsText(file);
-}
-
-async function handleManual(event) {
+function handleSubmit(event) {
   event.preventDefault();
-  const formData = new FormData(manualForm);
-  const record = {
-    actor_name: formData.get('identity'),
-    actor_role: formData.get('profile'),
-    actor_id: state.user?.id,
+  const formData = new FormData(entryForm);
+  const entry = {
+    id: crypto.randomUUID(),
+    identity: formData.get('identity'),
+    role: formData.get('role'),
     period: formData.get('period'),
     amount: Number(formData.get('amount')),
     status: formData.get('status'),
   };
 
-  const { error } = await supabase.from('redevances').insert(record);
-  if (error) {
-    console.warn('Enregistrement local (Supabase indisponible)', error.message);
-    state.fees.unshift(record);
-  } else {
-    await fetchFees(state.user.id, state.role);
-  }
-
-  manualFeedback.hidden = false;
-  setTimeout(() => { manualFeedback.hidden = true; }, 2000);
-  manualForm.reset();
-  applyAdminFilters();
+  upsertEntries([entry]);
+  entryForm.reset();
+  showMessage(formFeedback, 'Données sauvegardées');
 }
 
-function initEventListeners() {
-  authForm.addEventListener('submit', handleAuth);
-  logoutBtn.addEventListener('click', handleLogout);
-  parseBtn.addEventListener('click', handleFileImport);
-  manualForm.addEventListener('submit', handleManual);
-  periodFilter.addEventListener('change', applyAdminFilters);
-  personalPeriod.addEventListener('change', applyPersonalFilters);
+function handleImport() {
+  const file = fileInput.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const records = parseCsv(String(reader.result));
+    if (records.length === 0) {
+      showMessage(importFeedback, 'Aucune ligne valide trouvée');
+      return;
+    }
+    upsertEntries(records);
+    showMessage(importFeedback, `${records.length} ligne${records.length > 1 ? 's' : ''} importée${records.length > 1 ? 's' : ''}`);
+    fileInput.value = '';
+  };
+  reader.readAsText(file);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  initEventListeners();
-});
+function handleReset() {
+  if (!confirm('Voulez-vous vraiment effacer les données locales ?')) return;
+  state.entries = [];
+  saveEntries();
+  render();
+}
+
+function init() {
+  loadEntries();
+  render();
+
+  entryForm.addEventListener('submit', handleSubmit);
+  importBtn.addEventListener('click', handleImport);
+  rangeFilter.addEventListener('change', render);
+  resetBtn.addEventListener('click', handleReset);
+}
+
+window.addEventListener('DOMContentLoaded', init);
