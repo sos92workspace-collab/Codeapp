@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SCM - Suivi des redevances</title>
+  <title>SCM - Rappels locaux</title>
   <link rel="stylesheet" href="styles.css">
-  <script type="module" src="app.js" defer></script>
+  <script src="app.js" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -13,87 +13,56 @@
       <div class="brand__dot"></div>
       <div>
         <p class="brand__eyebrow">SCM</p>
-        <p class="brand__title">Gestion des redevances</p>
+        <p class="brand__title">Gestion locale des redevances</p>
       </div>
     </div>
     <nav class="nav" aria-label="Navigation principale">
-      <button id="logout-btn" class="btn btn--ghost" type="button" hidden>Déconnexion</button>
+      <span class="pill pill--success">Mode hors ligne</span>
     </nav>
   </header>
 
   <main class="layout">
-    <section id="auth-panel" class="panel">
-      <h1>Connexion</h1>
-      <p class="muted">Accédez à votre espace en utilisant vos identifiants Supabase.</p>
-      <form id="auth-form" class="form-grid">
-        <label class="form-field">
-          <span>Email</span>
-          <input type="email" name="email" autocomplete="email" required>
-        </label>
-        <label class="form-field">
-          <span>Mot de passe</span>
-          <input type="password" name="password" autocomplete="current-password" required>
-        </label>
-        <label class="form-field">
-          <span>Profil</span>
-          <select name="role" required>
-            <option value="medecin">Médecin</option>
-            <option value="remplacant">Remplaçant</option>
-            <option value="administrateur">Administrateur</option>
-          </select>
-        </label>
-        <div class="form-actions">
-          <button class="btn" type="submit">Se connecter</button>
-          <p class="muted">Pour les nouveaux utilisateurs, contactez l'administrateur pour créer un compte.</p>
-        </div>
-      </form>
-      <div id="auth-message" class="pill pill--warning" role="status" hidden></div>
-    </section>
-
-    <section id="dashboard" class="panel" hidden>
+    <section class="panel">
       <header class="panel__header">
         <div>
-          <p class="muted" id="role-label"></p>
-          <h2 id="welcome-message"></h2>
+          <p class="muted">Tout est stocké dans votre navigateur</p>
+          <h1>Redevances locales</h1>
         </div>
         <div class="badge-group">
-          <div class="pill" id="period-label">4 dernières années</div>
-          <div class="pill pill--success" id="status-pill">Connecté</div>
+          <button id="reset-data" class="btn btn--ghost" type="button">Réinitialiser</button>
         </div>
       </header>
 
-      <div id="admin-tools" class="card" hidden>
+      <div class="card">
         <div class="card__header">
           <div>
-            <p class="muted">Administration</p>
-            <h3>Importer et suivre les redevances</h3>
+            <p class="muted">Import rapide</p>
+            <h3>Charger un fichier CSV</h3>
           </div>
           <div class="badge-group">
-            <div class="pill">Appelée</div>
-            <div class="pill pill--success">Payée</div>
-            <div class="pill pill--warning">En attente</div>
+            <div class="pill">Colonnes : identite, profil, periode, montant, statut</div>
           </div>
         </div>
         <div class="import-grid">
           <div>
-            <p class="muted">Import mensuel (CSV / Excel)</p>
             <label class="upload">
-              <input type="file" id="fee-file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
+              <input type="file" id="file-input" accept=".csv,text/csv">
               <span>Sélectionner un fichier</span>
             </label>
-            <button class="btn btn--ghost" type="button" id="parse-btn">Importer</button>
-            <p class="hint">Les colonnes attendues : médecin/remplaçant, période, montant, statut.</p>
+            <button id="import-btn" class="btn btn--ghost" type="button">Importer</button>
+            <p class="hint">Les données sont ajoutées et sauvegardées automatiquement dans le stockage local.</p>
+            <div id="import-feedback" class="pill" hidden></div>
           </div>
           <div>
-            <p class="muted">Saisie manuelle</p>
-            <form id="manual-form" class="form-grid">
+            <p class="muted">Vous pouvez aussi saisir vos données manuellement :</p>
+            <form id="entry-form" class="form-grid">
               <label class="form-field">
                 <span>Identité</span>
-                <input type="text" name="identity" required>
+                <input type="text" name="identity" placeholder="Dr. Dupont" required>
               </label>
               <label class="form-field">
                 <span>Profil</span>
-                <select name="profile" required>
+                <select name="role" required>
                   <option value="medecin">Médecin</option>
                   <option value="remplacant">Remplaçant</option>
                 </select>
@@ -115,38 +84,39 @@
                 </select>
               </label>
               <div class="form-actions">
-                <button class="btn" type="submit">Enregistrer la redevance</button>
-                <div id="manual-feedback" class="pill pill--success" role="status" hidden>Redevance ajoutée</div>
+                <button class="btn" type="submit">Enregistrer</button>
+                <div id="form-feedback" class="pill pill--success" role="status" hidden>Données sauvegardées</div>
               </div>
             </form>
           </div>
         </div>
       </div>
 
-      <div id="overview" class="card" hidden>
+      <div class="card" id="summary-card">
         <div class="card__header">
           <div>
             <p class="muted">Synthèse</p>
-            <h3>Recettes sur 4 ans</h3>
+            <h3>Totaux par statut</h3>
           </div>
-          <div class="filters">
+          <div class="badge-group">
             <label class="form-field">
-              <span>Période</span>
-              <select id="period-filter">
+              <span>Plage</span>
+              <select id="range-filter">
+                <option value="12">12 derniers mois</option>
+                <option value="24">24 derniers mois</option>
+                <option value="48" selected>48 derniers mois</option>
                 <option value="all">Tout</option>
-                <option value="current-year">Année en cours</option>
-                <option value="last-year">Année précédente</option>
               </select>
             </label>
           </div>
         </div>
         <div class="summary-grid">
           <div class="stat">
-            <p class="muted">Montant appelé</p>
+            <p class="muted">Appelé</p>
             <p class="stat__value" id="called-total">€0</p>
           </div>
           <div class="stat">
-            <p class="muted">Montant payé</p>
+            <p class="muted">Payé</p>
             <p class="stat__value stat__value--success" id="paid-total">€0</p>
           </div>
           <div class="stat">
@@ -154,50 +124,33 @@
             <p class="stat__value stat__value--warning" id="pending-total">€0</p>
           </div>
         </div>
-        <div class="table-wrapper">
-          <table>
-            <caption class="muted">Détails par année</caption>
-            <thead>
-              <tr>
-                <th>Année</th>
-                <th>Appelé</th>
-                <th>Payé</th>
-                <th>En attente</th>
-              </tr>
-            </thead>
-            <tbody id="annual-rows"></tbody>
-          </table>
-        </div>
       </div>
 
-      <div id="personal" class="card" hidden>
+      <div class="card">
         <div class="card__header">
           <div>
-            <p class="muted">Espace personnel</p>
-            <h3>Vos redevances</h3>
+            <p class="muted">Historique</p>
+            <h3>Détails des redevances</h3>
           </div>
-          <div class="filters">
-            <label class="form-field">
-              <span>Période</span>
-              <select id="personal-period">
-                <option value="12">12 derniers mois</option>
-                <option value="24">24 derniers mois</option>
-                <option value="48" selected>4 dernières années</option>
-              </select>
-            </label>
+          <div class="badge-group">
+            <div class="pill" id="entry-count">0 enregistrements</div>
           </div>
         </div>
         <div class="table-wrapper">
           <table>
-            <caption class="muted">Vos appels</caption>
+            <caption class="muted">Toutes les données sont persistées en local</caption>
             <thead>
               <tr>
                 <th>Période</th>
+                <th>Identité</th>
+                <th>Profil</th>
                 <th>Montant</th>
                 <th>Statut</th>
               </tr>
             </thead>
-            <tbody id="personal-rows"></tbody>
+            <tbody id="entries-body">
+              <tr><td colspan="5">Aucune donnée</td></tr>
+            </tbody>
           </table>
         </div>
       </div>
